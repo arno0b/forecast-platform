@@ -1,0 +1,41 @@
+name: Ingest AEMO
+
+on:
+  schedule:
+    # Every 30 minutes. AEMO dispatches every 5, but GitHub's scheduler is
+    # best-effort and drops runs under load, so a tighter cron buys little.
+    # Phase 2 moves this to EventBridge and Lambda for full resolution.
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  # Never let two ingest runs race on the same files.
+  group: ingest
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Fetch and store
+        env:
+          PYTHONPATH: src
+        run: python -m forecast_platform.ingest --data-dir data
+      - name: Commit new observations
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          # Nothing new is the normal case between dispatch intervals.
+          git diff --staged --quiet && echo "no new observations" && exit 0
+          git commit -m "data: AEMO observations $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push

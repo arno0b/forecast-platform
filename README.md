@@ -3,7 +3,8 @@
 Short-term electricity demand forecasting for the Australian National Electricity Market, served as an
 API on EKS, with the infrastructure provisioned entirely in Terraform.
 
-**Status: design approved, Phase 1 not started.** Phase 0 (data source verification) is complete.
+**Status: Phase 1a in progress.** AEMO client, append-only store and scheduled ingestion are built
+and tested. The forecast API and container are next. Phase 1b (Terraform, VPC, EKS) has not started.
 
 This is a portfolio project built on public data. It is not production, and it is not research.
 
