@@ -1,2 +1,3 @@
 settlement_date,region_id,total_demand,price,scheduled_generation,semi_scheduled_generation
 2026-09-19T00:40:00,NSW1,7518.38,77.22634,5482.68009,1332.82991
+2026-09-19T04:05:00,NSW1,6534.85,83.54804,4281.10625,1416.01375
