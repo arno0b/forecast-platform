@@ -1,3 +1,4 @@
 settlement_date,region_id,total_demand,price,scheduled_generation,semi_scheduled_generation
 2026-09-20T03:45:00,TAS1,932.48,-7.99414,316.59983,349.02017
 2026-09-20T06:00:00,TAS1,927.33,-7.79018,278.79573,352.63427
+2026-09-20T08:20:00,TAS1,883.94,-15.01,352.79529,181.14471
