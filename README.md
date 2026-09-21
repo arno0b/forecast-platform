@@ -3,8 +3,8 @@
 Short-term electricity demand forecasting for the Australian National Electricity Market, served as an
 API on EKS, with the infrastructure provisioned entirely in Terraform.
 
-**Status: Phase 1a in progress.** AEMO client, append-only store and scheduled ingestion are built
-and tested. The forecast API and container are next. Phase 1b (Terraform, VPC, EKS) has not started.
+**Status: Phase 1a complete.** Ingestion, storage, forecaster, API and container are built, tested and
+running. Phase 1b (Terraform, VPC, EKS, ECR) is next and has not started.
 
 This is a portfolio project built on public data. It is not production, and it is not research.
 
@@ -56,6 +56,45 @@ AEMO (public)
 Ingestion is deliberately decoupled from compute. The cluster is ephemeral and torn down between
 working sessions to keep the cost near zero; ingestion runs continuously regardless, because an
 upstream feed with no history cannot be backfilled once a gap opens.
+
+## Running it locally
+
+```bash
+python -m venv .venv
+.venv/Scripts/python -m pip install -r requirements-dev.txt
+.venv/Scripts/python -m pytest
+.venv/Scripts/python -m uvicorn forecast_platform.api:app --reload
+```
+
+Ingest one interval by hand:
+
+```bash
+PYTHONPATH=src .venv/Scripts/python -m forecast_platform.ingest --data-dir data
+```
+
+Or run the container:
+
+```bash
+docker build -t forecast-platform:dev .
+docker run --rm -p 8000:8000 forecast-platform:dev
+```
+
+## Known limitation
+
+**The seasonal model does not currently fire, and this is measured rather than assumed.**
+
+Ingestion runs on a GitHub Actions cron set to 30 minutes. Measured over 40.8 hours, 11 of roughly 82
+scheduled runs actually executed, a 13 percent delivery rate with a mean gap of 3.7 hours. GitHub
+documents its scheduler as best effort and deprioritises cron on low-activity repositories.
+
+The seasonal lookup matches an observation within 15 minutes of the same time one week earlier. At 3.7
+hour spacing that lookup effectively never lands inside the tolerance, so every request falls through
+to the persistence fallback while still returning HTTP 200 with healthy-looking metrics. Tested against
+8 days of real accumulated data: 0 of 6 forecast steps found a seasonal match.
+
+Phase 2 moves ingestion to EventBridge and Lambda, which restores the full five-minute resolution. It
+was originally planned as a demonstration of migrating a working pipeline onto managed services. The
+measurement above reclassified it as a prerequisite.
 
 ## Phases
 
