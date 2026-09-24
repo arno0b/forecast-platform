@@ -1,2 +1,3 @@
 settlement_date,region_id,total_demand,price,scheduled_generation,semi_scheduled_generation
 2026-09-25T04:10:00,SA1,1339.86,100.44,449.98373,314.85627
+2026-09-25T07:40:00,SA1,1290.13,98.28821,509.38483,202.33517
