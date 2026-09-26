@@ -8,10 +8,11 @@
 !example.tfvars
 
 # Terraform
-.terraform/
+terraform/.terraform/
 *.tfstate
 *.tfstate.*
-crash.log
+terraform/terraform.tfvars
+*.tfplan
 
 # Python
 __pycache__/
