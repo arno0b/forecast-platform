@@ -1,3 +1,4 @@
 settlement_date,region_id,total_demand,price,scheduled_generation,semi_scheduled_generation
 2026-10-03T01:20:00,VIC1,4864.09,0.01,2472.00007,3906.72993
 2026-10-03T06:05:00,VIC1,4600.94,0.00013,2567.00194,3357.36806
+2026-10-03T09:55:00,VIC1,5404.55,0.01,2410.00311,4160.23689
