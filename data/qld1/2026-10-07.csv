@@ -1,3 +1,4 @@
 settlement_date,region_id,total_demand,price,scheduled_generation,semi_scheduled_generation
 2026-10-07T00:25:00,QLD1,5962.21,109.98,6254.11359,226.09641
 2026-10-07T05:40:00,QLD1,5959.25,110.13,6184.05323,244.92677
+2026-10-07T09:35:00,QLD1,5532.02,65.5,3473.13863,2736.46137
