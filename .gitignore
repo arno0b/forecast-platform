@@ -12,7 +12,7 @@ terraform/.terraform/
 *.tfstate
 *.tfstate.*
 terraform/terraform.tfvars
-*.tfplan
+*.plan
 
 # Python
 __pycache__/

@@ -11,7 +11,7 @@ Three questions came up while setting it up. Who creates the bucket? What protec
 
 ## Decision
 
-State is stored in a single S3 bucket, `<bucket-name>`, at key `forecast-platform/infra.tfstate`. The bucket is created by hand with the AWS CLI (Task 1, Part A), not by Terraform. It has versioning enabled. Locking uses Terraform's S3-native lockfile (`use_lockfile = true`); there is no DynamoDB lock table.
+State is stored in a single S3 bucket, `fp-tfstate-767398149699-apse2`, at key `forecast-platform/infra.tfstate`. The bucket is created by hand with the AWS CLI (Task 1, Part A), not by Terraform. It has versioning enabled. Locking uses Terraform's S3-native lockfile (`use_lockfile = true`); there is no DynamoDB lock table.
 
 ### Why the bucket is created outside Terraform
 
@@ -35,7 +35,7 @@ Versioning is cheap here: state files are small, and apply frequency is low.
 
 Until Terraform 1.10, the S3 backend could only lock through a separate DynamoDB table. That meant a second resource to bootstrap by hand, extra IAM permissions, and one more thing to find and clean up.
 
-Terraform 1.10 added native S3 locking. With `use_lockfile = true`, Terraform writes a lock object (`forecast-platform/infra.tfstate.tflock`) next to the state using an S3 conditional write. The write only succeeds if the object does not already exist, so a second concurrent run fails to acquire the lock instead of racing. DynamoDB-based locking has since been deprecated.
+Terraform 1.10 added native S3 locking. With `use_lockfile = true`, Terraform writes a lock object (`phase-1b/terraform.tfstate.tflock`) next to the state using an S3 conditional write. The write only succeeds if the object does not already exist, so a second concurrent run fails to acquire the lock instead of racing. DynamoDB-based locking has since been deprecated.
 
 `versions.tf` constrains Terraform to `~> 1.16`, so native locking is guaranteed to be available. A DynamoDB table would add cost, permissions, and bootstrap steps while providing nothing the lockfile doesn't.
 

@@ -11,3 +11,18 @@ output "caller_arn" {
 output "region" {
   value = data.aws_region.current.region
 }
+
+output "vpc_id" {
+  description = "ID of the VPC."
+  value       = module.network.vpc_id
+}
+
+output "public_subnet_ids" {
+  description = "Public subnet IDs, one per availability zone."
+  value       = module.network.public_subnet_ids
+}
+
+output "availability_zones" {
+  description = "Availability zones the public subnets were placed in."
+  value       = module.network.availability_zones
+}
