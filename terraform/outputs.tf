@@ -26,3 +26,8 @@ output "availability_zones" {
   description = "Availability zones the public subnets were placed in."
   value       = module.network.availability_zones
 }
+
+output "ecr_repository_url" {
+  description = "ECR repository URL for the application image."
+  value       = module.ecr.repository_url
+}
