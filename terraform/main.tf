@@ -34,6 +34,16 @@ module "ecr" {
 
   repository_name = "forecast-platform"
 }
+
+module "cluster" {
+  source = "./modules/cluster"
+
+  cluster_name       = "forecast-platform"
+  kubernetes_version = "1.36"
+  subnet_ids         = module.network.public_subnet_ids
+}
+
+
 data "aws_caller_identity" "current" {}
 
 data "aws_region" "current" {}

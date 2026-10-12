@@ -31,3 +31,20 @@ output "ecr_repository_url" {
   description = "ECR repository URL for the application image."
   value       = module.ecr.repository_url
 }
+
+output "cluster_name" {
+  value = module.cluster.cluster_name
+}
+
+output "cluster_endpoint" {
+  value = module.cluster.cluster_endpoint
+}
+
+output "cluster_certificate_authority_data" {
+  value     = module.cluster.cluster_certificate_authority_data
+  sensitive = true
+}
+
+output "oidc_issuer_url" {
+  value = module.cluster.oidc_issuer_url
+}
