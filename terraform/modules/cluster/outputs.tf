@@ -8,10 +8,6 @@ output "cluster_endpoint" {
   value       = aws_eks_cluster.this.endpoint
 }
 
-output "cluster_arn" {
-  description = "ARN of the cluster."
-  value       = aws_eks_cluster.this.arn
-}
 
 output "cluster_certificate_authority_data" {
   description = "Base64-encoded CA certificate for the API server."
@@ -36,4 +32,9 @@ output "cluster_iam_role_arn" {
 output "cluster_version" {
   description = "Kubernetes version running on the control plane."
   value       = aws_eks_cluster.this.version
+}
+
+output "node_iam_role_name" {
+  description = "Name of the node IAM role."
+  value       = aws_iam_role.node.name
 }

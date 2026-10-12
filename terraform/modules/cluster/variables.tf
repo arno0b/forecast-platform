@@ -57,3 +57,42 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "node_capacity_type" {
+  description = "The capacity type for the node group."
+  type        = string
+  default     = "SPOT"
+
+  validation {
+    condition     = contains(["SPOT", "ON_DEMAND"], var.node_capacity_type)
+    error_message = "node_capacity_type must be SPOT or ON_DEMAND."
+  }
+}
+
+variable "instance_types" {
+  description = "The instance types for the node group."
+  type        = list(string)
+  default     = ["t3.small"]
+}
+
+variable "disk_size" {
+  description = "The disk size in GB for the node group."
+  type        = number
+  default     = 20
+}
+
+
+
+variable "scaling_config" {
+  description = "The scaling configuration for the node group."
+  type        = object({
+    desired_size = number
+    max_size     = number
+    min_size     = number
+  })
+  default = {
+    desired_size = 2
+    max_size     = 3
+    min_size     = 1
+  }
+}

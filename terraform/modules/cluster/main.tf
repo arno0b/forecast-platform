@@ -1,8 +1,11 @@
+# ---------------------------------------------------------------------------
+# Control plane
+# ---------------------------------------------------------------------------
+
+
 resource "aws_iam_role" "cluster" {
   name = "${var.cluster_name}-cluster-role"
 
-  # jsonencode, same reasoning as the ECR lifecycle policy: structural errors
-  # surface at plan time rather than at apply.
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -51,3 +54,69 @@ resource "aws_eks_cluster" "this" {
     aws_iam_role_policy_attachment.cluster_policy,
   ]
 }
+
+
+# ---------------------------------------------------------------------------
+# Nodes
+# ---------------------------------------------------------------------------
+
+resource "aws_iam_role" "node" {
+  name = "${var.cluster_name}-node"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      },
+    ]
+  })
+
+  tags = merge(var.tags, {
+    Name = "${var.cluster_name}-node-role"
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "node" {
+  for_each = toset([
+    "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
+    "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
+    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+  ])
+
+  role       = aws_iam_role.node.name
+  policy_arn = each.value
+}
+
+
+resource "aws_eks_node_group" "this" {
+  cluster_name    = aws_eks_cluster.this.name
+  node_group_name = "${var.cluster_name}-nodes"
+  node_role_arn   = aws_iam_role.node.arn
+  subnet_ids      = var.subnet_ids
+
+  instance_types = var.instance_types
+  disk_size     = var.disk_size
+  capacity_type = var.node_capacity_type
+  version      = var.kubernetes_version
+
+  scaling_config {
+    desired_size = var.scaling_config.desired_size
+    max_size     = var.scaling_config.max_size  
+    min_size     = var.scaling_config.min_size
+  }
+
+  tags = merge(var.tags, {
+    Name = "${var.cluster_name}-nodes"
+  })
+
+  depends_on = [
+    aws_iam_role_policy_attachment.node,
+  ]
+
+}
+
