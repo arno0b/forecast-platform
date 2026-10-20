@@ -16,9 +16,14 @@ This module does not know AEMO exists. It stores Observations.
 """
 
 import csv
+import io
 from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
+from typing import Protocol
+
+import boto3
+from botocore.exceptions import ClientError
 
 from forecast_platform.models import Observation
 
@@ -117,3 +122,164 @@ class CsvStore:
                 )
                 for row in csv.DictReader(handle)
             ]
+
+
+# --------------------------------------------------------------------------
+# Shared serialisation, so both stores produce byte-identical CSV and a human
+# can diff an S3 object against a local file.
+# --------------------------------------------------------------------------
+
+
+def _row_of(observation: Observation) -> dict:
+    return {
+        "settlement_date": observation.settlement_date.isoformat(),
+        "region_id": observation.region_id,
+        "total_demand": observation.total_demand,
+        "price": observation.price,
+        "scheduled_generation": observation.scheduled_generation,
+        "semi_scheduled_generation": observation.semi_scheduled_generation,
+    }
+
+
+def _observation_of(row: dict) -> Observation:
+    return Observation(
+        settlement_date=datetime.fromisoformat(row["settlement_date"]),
+        region_id=row["region_id"],
+        total_demand=float(row["total_demand"]),
+        price=float(row["price"]),
+        scheduled_generation=float(row["scheduled_generation"]),
+        semi_scheduled_generation=float(row["semi_scheduled_generation"]),
+    )
+
+
+def _serialise(observations: list[Observation]) -> str:
+    buffer = io.StringIO(newline="")
+    writer = csv.DictWriter(buffer, fieldnames=FIELDS, lineterminator="\n")
+    writer.writeheader()
+    for observation in observations:
+        writer.writerow(_row_of(observation))
+    return buffer.getvalue()
+
+
+def _deserialise(text: str) -> list[Observation]:
+    if not text.strip():
+        return []
+    return [_observation_of(row) for row in csv.DictReader(io.StringIO(text))]
+
+
+class Store(Protocol):
+    """What the ingester and the service depend on.
+
+    CsvStore and S3Store both satisfy this, which is what lets the Lambda and
+    the CLI share one code path.
+    """
+
+    def append(self, observations: Iterable[Observation]) -> int: ...
+
+    def read_region(self, region_id: str) -> list[Observation]: ...
+
+
+class S3Store:
+    """Append-only observation storage in S3.
+
+    Same object layout as CsvStore: one CSV per region per MARKET date, keyed
+    from the observation's own timestamp. Deriving the key from a UTC date
+    would split every market day across two objects at 10am, because AEMO
+    publishes in AEST.
+
+    S3 has no append, only replace, so writing means read-modify-write. That
+    is a lost-update race if two Lambda invocations land together, and the
+    rows lost cannot be refetched because AEMO only serves the current
+    interval. The write is therefore conditional: IfMatch on the ETag we read,
+    or IfNoneMatch when creating. A competing write fails the precondition and
+    we retry against the newer object rather than overwriting it.
+    """
+
+    MAX_ATTEMPTS = 5
+
+    def __init__(
+        self,
+        bucket: str,
+        prefix: str = "observations",
+        region_name: str = "ap-southeast-2",
+        client=None,
+    ):
+        self.bucket = bucket
+        self.prefix = prefix.strip("/")
+        self._client = client or boto3.client("s3", region_name=region_name)
+
+    def _key_for(self, observation: Observation) -> str:
+        day = observation.settlement_date.date().isoformat()
+        return f"{self.prefix}/{observation.region_id.lower()}/{day}.csv"
+
+    def _region_prefix(self, region_id: str) -> str:
+        return f"{self.prefix}/{region_id.lower()}/"
+
+    def _get(self, key: str) -> tuple[list[Observation], str | None]:
+        """Observations at this key and its ETag, or ([], None) if absent."""
+        try:
+            response = self._client.get_object(Bucket=self.bucket, Key=key)
+        except self._client.exceptions.NoSuchKey:
+            return [], None
+        body = response["Body"].read().decode("utf-8")
+        return _deserialise(body), response.get("ETag")
+
+    def append(self, observations: Iterable[Observation]) -> int:
+        seen: set[tuple[str, str]] = set()
+        batch: list[Observation] = []
+        for observation in observations:
+            if observation.key() in seen:
+                continue
+            seen.add(observation.key())
+            batch.append(observation)
+        if not batch:
+            return 0
+
+        by_key: dict[str, list[Observation]] = {}
+        for observation in batch:
+            by_key.setdefault(self._key_for(observation), []).append(observation)
+
+        return sum(self._merge_write(k, v) for k, v in by_key.items())
+
+    def _merge_write(self, key: str, incoming: list[Observation]) -> int:
+        for _ in range(self.MAX_ATTEMPTS):
+            existing, etag = self._get(key)
+            already = {o.key() for o in existing}
+            new = [o for o in incoming if o.key() not in already]
+            if not new:
+                return 0
+
+            merged = sorted(existing + new, key=lambda o: o.settlement_date)
+            condition = {"IfMatch": etag} if etag else {"IfNoneMatch": "*"}
+            try:
+                self._client.put_object(
+                    Bucket=self.bucket,
+                    Key=key,
+                    Body=_serialise(merged).encode("utf-8"),
+                    ContentType="text/csv",
+                    **condition,
+                )
+                return len(new)
+            except ClientError as error:
+                code = error.response.get("Error", {}).get("Code")
+                if code in ("PreconditionFailed", "ConditionalRequestConflict"):
+                    continue  # someone else wrote; re-read and merge again
+                raise
+        raise RuntimeError(
+            f"gave up after {self.MAX_ATTEMPTS} attempts writing {key}; "
+            "something is writing this object continuously"
+        )
+
+    def read_region(self, region_id: str) -> list[Observation]:
+        observations: list[Observation] = []
+        paginator = self._client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(
+            Bucket=self.bucket, Prefix=self._region_prefix(region_id)
+        ):
+            for obj in page.get("Contents", []):
+                if not obj["Key"].endswith(".csv"):
+                    continue
+                found, _ = self._get(obj["Key"])
+                observations.extend(found)
+        observations.sort(key=lambda o: o.settlement_date)
+        return observations
