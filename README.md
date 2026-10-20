@@ -3,8 +3,13 @@
 Short-term electricity demand forecasting for the Australian National Electricity Market, served as an
 API on EKS, with the infrastructure provisioned entirely in Terraform.
 
-**Status: Phase 1a complete.** Ingestion, storage, forecaster, API and container are built, tested and
-running. Phase 1b (Terraform, VPC, EKS, ECR) is next and has not started.
+**Status: Phase 1b complete.** The application runs on EKS, on infrastructure provisioned entirely by
+Terraform, and the whole stack has been destroyed and rebuilt from code three times. Phase 2 (Argo CD,
+ingestion moved to Lambda and S3) is next.
+
+**The public endpoint is not always live.** The cluster is destroyed between working sessions, because
+an idle EKS control plane bills at USD 0.10/hour whether or not anything runs on it. `terraform apply`
+brings the whole stack back in about 15 minutes.
 
 This is a portfolio project built on public data. It is not production, and it is not research.
 
@@ -78,6 +83,37 @@ Or run the container:
 docker build -t forecast-platform:dev .
 docker run --rm -p 8000:8000 forecast-platform:dev
 ```
+
+## Infrastructure
+
+Provisioned by Terraform in `ap-southeast-2`, with remote state in S3 using native lockfile locking.
+Three modules: `network` (VPC, three public subnets across three AZs, internet gateway), `ecr`
+(immutable tags, scan on push, lifecycle policy), and `cluster` (EKS 1.36, managed node group on
+t3.small spot instances).
+
+**No NAT gateway.** One costs USD 43/month in this region and a conventional one-per-AZ layout is USD
+129/month, against a USD 10 budget. Nodes run in public subnets with security groups instead. The
+trade-off is written up in `docs/decisions/0001-no-nat-gateway.md`.
+
+**The Service is a Classic Load Balancer, not an NLB.** This account is under an AWS new-account block
+on Elastic Load Balancing v2: `CreateLoadBalancer` returns `OperationNotPermitted` while the v1 API
+works. Quotas are not the cause. Restoring the `aws-load-balancer-type: "nlb"` annotation is a one-line
+change once the restriction lifts; an ALB behind an Ingress is Phase 2.
+
+## What it cost
+
+Measured, not estimated. Phase 1b took **6.2 cluster-hours across three builds** and cost about
+**USD 0.80**:
+
+| | |
+| --- | --- |
+| EKS control plane | USD 0.10/hour |
+| 2 x t3.small spot | USD 0.019/hour |
+| Classic load balancer | USD 0.0252/hour |
+| Running total while up | **USD 0.145/hour** |
+
+Destroying between sessions is the whole reason that number is small. Left running continuously the
+same stack is about USD 105/month.
 
 ## Known limitation
 
