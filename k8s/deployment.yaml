@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forecast-platform
+  labels:
+    app: forecast-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: forecast-platform
+  template:
+    metadata:
+      labels:
+        app: forecast-platform
+    spec:
+      containers:
+      - name: forecast-platform
+        image: 767398149699.dkr.ecr.ap-southeast-2.amazonaws.com/forecast-platform:954bd0b
+        ports:
+        - name: http
+          containerPort: 8000
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 10001
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: http
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+
